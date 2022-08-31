@@ -10,7 +10,10 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+
+# Packages and data
+
 library(tidyverse)
 library(readr)
 library(ggthemes)
@@ -20,41 +23,50 @@ library(reactable)
 library(lubridate)
 library(janitor)
 
-setwd("C:/Users/brick/documents/bridge")
 
-bridge_df <- read_csv("bridge_week.csv") %>%
+df <- read_csv("https://raw.githubusercontent.com/dbricker882/Saga/main/bridge_week.csv")
+```
+
+
+```{r}
+# Data Cleaning
+
+bridge_df <- df %>%
   clean_names() %>%
-  select(c(last_name:form_name, submission_id:result)) %>%
-  pivot_wider(id_cols = c(last_name:form_name), names_from = parameter, values_from = result) %>%
-  clean_names() %>%
+  select(-c(user_id, form_id, submission_id, unit)) %>%
+  pivot_wider(
+    id_cols = c(last_name:form_name),
+    names_from = parameter,
+    values_from = result
+  ) %>%
   mutate(
-    training_load = rpe * workout_duration,
+    `Training Load` = `RPE` * `Workout Duration`,
     date = mdy(date)
-  )
+  ) %>%
+  pivot_longer(cols = c(`Overall`:`Training Load`), names_to = "parameter", values_to = "result")
 
 current_team <- "Team 1"
   
 ```
 
-
 ## Weekly Report For Bridge Athletic Team: `r current_team`
 
 ```{r, message=FALSE, echo=FALSE}
 reactable(
-bridge_df %>%
-  group_by(last_name) %>%
-  summarize(
-    number_of_logs = sum(!is.na(rpe)),
-    mean_session_length = round(mean(workout_duration, na.rm = TRUE), 0),
-    mean_training_load = round(mean(training_load, na.rm = TRUE), 0)
+  bridge_df %>%
+    group_by(last_name) %>%
+    summarize(
+      number_of_logs = sum(!is.na(result[parameter == "RPE"])),
+      mean_session_length = round(mean(result[parameter == "Workout Duration"], na.rm = TRUE), 0),
+      mean_training_load = round(mean(result[parameter == "Training Load"], na.rm = TRUE), 0)
+    ),
+  columns = list(
+    last_name = colDef(name = "Last Name:", footer = "Total/Average"),
+    number_of_logs = colDef(name = "Post Workout Logs", footer = function(values) sum(values)),
+    mean_session_length = colDef(name = "Average Session Length", footer = function(values) round(mean(values, na.rm = TRUE), 2)),
+    mean_training_load = colDef(name = "Average Training Load", footer = function(values) round(mean(values, na.rm = TRUE), 2))
   ),
-columns = list(
-  last_name = colDef(name = "Last Name:", footer = "Total/Average"),
-  number_of_logs = colDef(name ="Post Workout Logs", footer = function(values) sum(values)),
-  mean_session_length = colDef(name = "Average Session Length", footer = function(values) round(mean(values, na.rm = TRUE), 2)),
-  mean_training_load = colDef(name = "Average Training Load", footer = function(values) round(mean(values, na.rm = TRUE), 2))
-),
-defaultColDef = colDef(footerStyle = list(fontWeight = "bold"))
+  defaultColDef = colDef(footerStyle = list(fontWeight = "bold"))
 )
 ```
 
@@ -63,252 +75,114 @@ defaultColDef = colDef(footerStyle = list(fontWeight = "bold"))
 
 ```{r, warning=FALSE, echo=FALSE, fig.width=12, fig.height=8}
 
-ggarrange(ggplot(bridge_df, aes(hours_of_sleep, fill = ..x..)) +
+bridge_df %>% 
+  filter(parameter %in% c("Hours of Sleep", "Quality of Sleep", "Nutrition", "Soreness")) %>% 
+ggplot(aes(result, fill = ..x..)) +
   geom_histogram(
     color = "black", binwidth = 1,
     bins = 11, show.legend = FALSE
   ) +
+  facet_wrap(~parameter) +
   scale_fill_gradient(low = "red", high = "green") +
-  scale_x_continuous(limits = c(1, 10), breaks = 1:11) +
   scale_y_continuous(limits = c(0, 20), breaks = seq(0, 20, 2)) +
-  labs(title = "Hours of Sleep") +
   theme_bw() +
   theme(
     axis.title.x = element_blank(),
     axis.text.x = element_text(size = 14),
     axis.text.y = element_text(size = 14),
-    axis.title.y = element_text(size = 14)
-  ),
-ggplot(bridge_df, aes(quality_of_sleep, fill = ..x..)) +
-  geom_histogram(
-    color = "black", binwidth = 1,
-    bins = 11, show.legend = FALSE
-  ) +
-  scale_fill_gradient(low = "red", high = "green") +
-  scale_x_continuous(limits = c(1, 10), breaks = 1:10) +
-  scale_y_continuous(limits = c(0, 20), breaks = seq(0, 20, 2)) +
-  labs(title = "Quality of Sleep") +
-  theme_bw() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_blank(),
-    axis.title.y = element_blank()
-  ),
-ggplot(bridge_df, aes(nutrition, fill = ..x..)) +
-  geom_histogram(
-    color = "black", binwidth = 1,
-    bins = 11, show.legend = FALSE
-  ) +
-  scale_fill_gradient(low = "red", high = "green") +
-  scale_x_continuous(limits = c(1, 10), breaks = 1:10) +
-  scale_y_continuous(limits = c(0, 20), breaks = seq(0, 20, 2)) +
-  labs(title = "Nutrition") +
-  theme_bw() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_text(size = 14),
-    axis.title.y = element_text(size = 14)
-  ),
-ggplot(bridge_df, aes(soreness, fill = ..x..)) +
-  geom_histogram(
-    color = "black", binwidth = 1,
-    bins = 11, show.legend = FALSE
-  ) +
-  scale_fill_gradient(low = "red", high = "green") +
-  scale_x_continuous(limits = c(1, 10), breaks = 1:10) +
-  scale_y_continuous(limits = c(0, 20), breaks = seq(0, 20, 2)) +
-  labs(title = "Soreness") +
-  theme_bw() +
-  theme(
-    axis.title.x = element_blank(),
-    axis.text.x = element_text(size = 14),
-    axis.text.y = element_blank(),
-    axis.title.y = element_blank()
-  ),
-nrow = 2, ncol = 2
-)
+    axis.title.y = element_text(size = 14),
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 12)
+  )
 ```
 
 ## Daily performance log responses
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, fig.width=12, fig.height=8}
 
-ggarrange(
-  ggplot(bridge_df, aes(date, quality_of_sleep)) +
+bridge_df %>%
+  filter(parameter %in% c("Quality of Sleep", "Nutrition", "Stress", "Soreness")) %>%
+  ggplot(aes(date, result)) +
     geom_rect(
-      xmin = ymd(min(unique(bridge_df$date)) + 1) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 1) + 0.5,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "light gray"
-    ) +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 3) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 3) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 5) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 5) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_label(aes(label = last_name, fill = quality_of_sleep)) +
-    scale_fill_gradient(low = "red", high = "green") +
-    scale_x_date(
-      date_breaks = "1 day", limits = c(ymd(min(unique(bridge_df$date))), ymd(min(unique(bridge_df$date)) + 6)),
-      expand = c(.08, .08)
-    ) +
-    scale_y_continuous(breaks = seq(1, 10, 1), limits = c(1, 10)) +
-    guides(fill = FALSE) +
-    labs(title = "Quality of Sleep") +
-    theme_bw() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = -45, hjust = 0),
-      axis.text = element_text(size = 12),
-      axis.title.y = element_blank()
-    ),
-  ggplot(bridge_df, aes(date, nutrition)) +
-    geom_rect(
-      xmin = ymd(min(unique(bridge_df$date)) + 1) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 1) + 0.5,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "light gray"
-    ) +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 3) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 3) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 5) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 5) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_label(aes(label = last_name, fill = nutrition)) +
-    scale_fill_gradient(low = "red", high = "green") +
-    scale_x_date(
-      date_breaks = "1 day", limits = c(ymd(min(unique(bridge_df$date))), ymd(min(unique(bridge_df$date)) + 6)),
-      expand = c(.08, .08)
-    ) +
-    scale_y_continuous(breaks = seq(1, 10, 1), limits = c(1, 10)) +
-    guides(fill = FALSE) +
-    labs(title = "Nutrition") +
-    theme_bw() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = -45, hjust = 0),
-      axis.text = element_text(size = 12),
-      axis.title.y = element_blank()
-    ),
-  ggplot(bridge_df, aes(date, stress)) +
-    geom_rect(
-      xmin = ymd(min(unique(bridge_df$date)) + 1) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 1) + 0.5,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "light gray"
-    ) +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 3) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 3) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 5) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 5) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_label(aes(label = last_name, fill = stress)) +
-    scale_fill_gradient(low = "red", high = "green") +
-    scale_x_date(
-      date_breaks = "1 day", limits = c(ymd(min(unique(bridge_df$date))), ymd(min(unique(bridge_df$date)) + 6)),
-      expand = c(.08, .08)
-    ) +
-    scale_y_continuous(breaks = seq(1, 10, 1), limits = c(1, 10)) +
-    guides(fill = FALSE) +
-    labs(title = "Stress") +
-    theme_bw() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = -45, hjust = 0),
-      axis.text = element_text(size = 12),
-      axis.title.y = element_blank()
-    ),
-  ggplot(bridge_df, aes(date, soreness)) +
-    geom_rect(
-      xmin = ymd(min(unique(bridge_df$date)) + 1) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 1) + 0.5,
-      ymin = -Inf,
-      ymax = Inf,
-      fill = "light gray"
-    ) +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 3) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 3) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_rect(mapping = aes(
-      xmin = ymd(min(unique(bridge_df$date)) + 5) - 0.5,
-      xmax = ymd(min(unique(bridge_df$date)) + 5) + 0.5,
-      ymin = -Inf,
-      ymax = Inf
-    ), fill = "light gray") +
-    geom_label(aes(label = last_name, fill = soreness)) +
-    scale_fill_gradient(low = "red", high = "green") +
-    scale_x_date(
-      date_breaks = "1 day", limits = c(ymd(min(unique(bridge_df$date))), ymd(min(unique(bridge_df$date)) + 6)),
-      expand = c(.08, .08)
-    ) +
-    scale_y_continuous(breaks = seq(1, 10, 1), limits = c(1, 10)) +
-    guides(fill = FALSE) +
-    labs(title = "Soreness") +
-    theme_bw() +
-    theme(
-      axis.title.x = element_blank(),
-      axis.text.x = element_text(angle = -45, hjust = 0),
-      axis.text = element_text(size = 12),
-      axis.title.y = element_blank()
-    ),
-  ncol = 2, nrow = 2
-)
+    xmin = ymd(min(bridge_df$date) + 1) - 0.5,
+    xmax = ymd(min(bridge_df$date) + 1) + 0.5,
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "light gray"
+  ) +
+  geom_rect(mapping = aes(
+    xmin = ymd(min(bridge_df$date) + 3) - 0.5,
+    xmax = ymd(min(bridge_df$date) + 3) + 0.5,
+    ymin = -Inf,
+    ymax = Inf
+  ), fill = "light gray") +
+  geom_rect(mapping = aes(
+    xmin = ymd(min(bridge_df$date) + 5) - 0.5,
+    xmax = ymd(min(bridge_df$date) + 5) + 0.5,
+    ymin = -Inf,
+    ymax = Inf
+  ), fill = "light gray") +
+  geom_label(aes(label = last_name, fill = result)) +
+  scale_fill_gradient(low = "red", high = "green") +
+  facet_wrap(~parameter) +
+  scale_x_date(
+    date_breaks = "1 day",
+    date_labels = "%b-%d",
+    limits = c(ymd(min(bridge_df$date)), ymd(min(bridge_df$date) + 6)),
+    expand = c(.08, .08)
+  ) +
+  scale_y_continuous(breaks = seq(1, 10, 1), limits = c(1, 10)) +
+  guides(fill = "none") +
+  theme_bw() +
+  theme(
+    axis.title.x = element_blank(),
+    axis.text.y = element_text(size = 12),
+    axis.title.y = element_blank(),
+    strip.background = element_rect(fill = "white"),
+    strip.text = element_text(size = 14)
+  ) +
+  labs(
+    y = "Result",
+    x = "Date"
+  ) 
+    
 ```
 
 
 ## Daily training load. Team averages shown by bars. 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.width=12, fig.height=8}
+
 ggplot() +
-  geom_col(data = bridge_df %>% 
-             filter(form_name == 'Post Workout') %>% 
-             group_by(date) %>% 
-             summarize(mean_training_load = mean(training_load)),
-           aes(date, mean_training_load, fill = mean_training_load), color =
-             'black') +
-  scale_fill_gradient(low = 'green', high = 'red')+
-  labs(title = 'Individual and Mean Training Load',
-       y = 'Training Load (RPE*Duration)',
-       x = 'Date')+
-  geom_label(data = bridge_df , 
-             aes(x = date, y = training_load, label = last_name,
-                 fill = training_load)) +
-  scale_fill_gradient(low = 'green', high = 'red') +
-  scale_x_date(date_breaks = "1 day",
-               date_labels = '%m-%d') +
-  guides(fill = FALSE) +
-  theme_bw()+
-  theme(axis.title.x = element_text(size = 14),
-        axis.text.x = element_text(size = 14),
-        axis.text.y = element_text(size = 14),
-        axis.title.y = element_text(size = 14))
+  geom_col(
+    data = bridge_df %>%
+      filter(parameter == "Training Load") %>%
+      group_by(date) %>%
+      summarize(mean_training_load = mean(result, na.rm = TRUE)),
+    aes(date, mean_training_load, fill = mean_training_load), color =
+      "black"
+  ) +
+  scale_fill_gradient(low = "green", high = "red") +
+  labs(
+    title = "Individual and Mean Training Load",
+    y = "Training Load (RPE*Duration)",
+    x = NULL
+  ) +
+  geom_label(
+    data = bridge_df %>%
+      filter(parameter == "Training Load"),
+    aes(date, result, label = last_name, fill = result)
+  ) +
+  scale_x_date(
+    date_breaks = "1 day",
+    date_labels = "%b-%d"
+  ) +
+  guides(fill = "none") +
+  theme(
+    axis.title.x = element_text(size = 14),
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.y = element_text(size = 14)
+  ) +
+  theme_bw() 
 ```
 
 
